@@ -1,7 +1,8 @@
-from fastapi import FastAPI , HTTPException, Body
-from pydantic import BaseModel, Field 
+from fastapi import FastAPI , HTTPException, Body, Path, Query
+from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import date
+from starlette import status
 app = FastAPI()
 
 
@@ -27,7 +28,7 @@ class Book_request(BaseModel):
     author : str = Field(min_length=2)
     genre : str = Field(min_length=1 , max_length=20)
     rating : int = Field(gt=0,le=5)
-    published_date : date = Field()
+    published_date : date = Field(..., description="The date the book was published")
 
     model_config = {
         "json_schema_extra" : {
@@ -42,28 +43,48 @@ class Book_request(BaseModel):
     }
 
 BOOKS = [
-    Book(1, "abc", "jay", "fun", 3, date(2025, 10, 30)),
+    Book(1, "abc", "jay", "fun", 3, date(2024, 10, 30)),
     Book(2, "abcd", "san", "fun", 4, date(2025, 10, 29)),
-    Book(3, "abcde", "sri", "fun", 5, date(2025, 10, 28)),
+    Book(3, "abcde", "sri", "fun", 5, date(2023 , 10, 28)),
     Book(4, "abc", "jay", "fun", 3, date(2025, 10, 25)),
-    Book(5, "abc", "jay", "fun", 3, date(2025, 10, 24)),
+    Book(5, "abc", "jay", "fun", 3, date(2025, 10, 25)),
+    Book("","abc", "jay", "fun", 3, date(2025, 10, 25)),
+
 ]
 
-@app.get('/book')
+@app.get('/book',status_code=status.HTTP_200_OK)
 async def get_all_books():
-    return BOOKS
+    return [book for book in BOOKS] 
+    
 
-@app.get('/idBookFetch')
-async def idB_book_fetch(id : int):
+@app.get('/idBookFetch',status.HTTP_200_OK)
+async def idB_book_fetch(id : int = Query(...,gt=0)):
     for book in BOOKS:
         if book.id == id :
             return book.__dict__
 
-@app.post('/create_book')
+# @app.post('/create_book',status_code=201)
+# async def create_book(book_req : Book_request):
+#     new_book = Book(**book_req.model_dump())
+#     BOOKS.append(find_book_id(new_book))
+#     return {"message": "Book created", "book": new_book.__dict__ }
+# with starlette
+@app.post('/create_book',status_code=status.HTTP_201_CREATED)
 async def create_book(book_req : Book_request):
     new_book = Book(**book_req.model_dump())
     BOOKS.append(find_book_id(new_book))
-    return {"message": "Book created", "book": new_book.__dict__}
+    return {"message": "Book created", "book": new_book.__dict__ }
+
+
+@app.get('/books/publish/date')
+async def get_books_by_published_date(published_date : date):
+    return [book for book in BOOKS if book.published_date == published_date]
+
+@app.get('/books/publish/year')
+async def get_books_by_published_year(year : int):
+    return [book for book in BOOKS if book.published_date.year == year]
+
+
 
 def find_book_id(book:Book):
     # if len(BOOKS) > 0 :
@@ -74,8 +95,8 @@ def find_book_id(book:Book):
     return book
 
 
-@app.get('/book/')
-async def get_book_by_rating(rating: int):
+@app.get('/book/{rating}')
+async def get_book_by_rating(rating: int = Path(gt=0,le=5)):
     return [book for book in BOOKS if book.rating == rating]
 
 # @app.put('/books/update')
@@ -89,7 +110,7 @@ async def get_book_by_rating(rating: int):
 #             return {"message":"Updated"}
 #     raise HTTPException(status_code=404, detail="not found")
 
-@app.put('/books/update')
+@app.put('/books/update',status_code=status.HTTP_204_NO_CONTENT)
 async def update_book(book: Book_request):
     for i in range(len(BOOKS)):
         if BOOKS[i].id == book.id :
